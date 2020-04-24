@@ -197,7 +197,7 @@ import matplotlib.pyplot as plt
 
 ## More layers and more complex CNN ##
 cnn = Sequential()
-cnn.add(Conv2D(64, kernel_size=(3, 3), activation="relu", padding="same", input_shape=(50, 50, 3))),
+cnn.add(Conv2D(64, kernel_size=(3, 3), activation="relu", padding="same", input_shape=(75, 75, 3))),
 cnn.add(MaxPooling2D(2)),
 
 cnn.add(Conv2D(128, kernel_size=(3, 3), activation="relu", padding="same")),
