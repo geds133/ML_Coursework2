@@ -1,184 +1,268 @@
-import os
-import matplotlib.pyplot as plt
-import json
-from PIL import ImageOps, Image
-import math
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib import image
+import os
+from PIL import Image
+from random import shuffle
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+import keras
+from keras.utils import to_categorical
 
-with open("config.json", 'r') as configfile:
-	config = json.load(configfile)
+## load data
 
-segmentationsFilepath = config['segmentationsFilepath']
-CUBFilepath = config['CUBFilepath']
-attributesFilepath = config['attributesFilepath']
+birds = pd.read_csv('bird_labs.csv', low_memory=False)
 
-# create empty dicts to add data to
-image_id_summary = {}
-class_definitions = {}
-parts_definitions = {}
-attributedict = {}
-attribute_definitions = {}
-certainty_definitions = {}
 
-# extract current directory location
-current_directory = os.path.dirname(os.path.realpath(__file__))
+## get current directory
+a = os.getcwd()
 
-# function to read string from filename argument, and set extracted values to key argument in the dictionary defined by the dict_type argument
-def load_files(filename, key, dict_type):
-	inputfilepath = current_directory + filename
-	with open (inputfilepath, 'r') as file:
-		images = file.read()
+## create lists
+label_data = []
+IDs = []
 
-	# split at new lines
-	splitimages = images.split("\n")
+#### don't change this to change quantity of images, change at next part where said ###
+df = pd.DataFrame(
+    {'class_id': [], 'image': [], 'i1': [], 'i2': [], 'i3': [],'i4': [], 'i5': [], 'i6': [], 'i7': [], 'i8': [], 'i9': [], 'i10': [], 'i11': []})
 
-	# iterate through lines (excluding last as each file ends with blank line)
-	for idx, item in enumerate(splitimages[:-1], start=1):
-		# split at whitespace
-		item2 = item.split(" ")
-		# set key logic based on source data
-		if key == "image_filename":
-			dict_type[item2[0]] = {}
-			dict_type[item2[0]][key] = item2[1].split("/")[1]
-		elif key in ["image_class_label", "train_test_split"]:
-			dict_type[item2[0]][key] = item2[1]
-		elif key == 'image_bounding_box':
-			dict_type[item2[0]][key] = item2[1:]
-		elif key in ['class_string', 'part_string', 'attribute_string', 'certainty_string']:
-			dict_type[item2[0]] = item2[1]
-		elif key in ['image_part_location', 'image_attribute_labels']:
-			if item2[1] == '1':
-				dict_type[item2[0]][key] = {}
-			dict_type[item2[0]][key][item2[1]] = item2[2:]
-			# dict_type[item2[0]][key][item2[1]]['is_present'] = item2[2]
-			# dict_type[item2[0]][key][item2[1]]['certainty_id'] = item2[3]
-			# dict_type[item2[0]][key][item2[1]]['time'] = item2[4]
-		elif key == 'class_attribute_certainty':
-			attributedict[str(idx)] = {}
-			for x in range(0,len(item2)):
-				attributedict[str(idx)][str(x+1)] = item2[x]
-	return
+for row in birds.itertuples():
+    class_name = row.class_name
+    class_id = row.class_id
+    image_name = row.image_name
+    x = row.x
+    y = row.y
+    width = row.width
+    height = row.height
 
-load_files(CUBFilepath + "images.txt", "image_filename", image_id_summary)
-load_files(CUBFilepath + "image_class_labels.txt", "image_class_label", image_id_summary)
-load_files(CUBFilepath + "bounding_boxes.txt", "image_bounding_box", image_id_summary)
-load_files(CUBFilepath + "train_test_split.txt", "train_test_split", image_id_summary)
-load_files(CUBFilepath + "classes.txt", "class_string", class_definitions)
-load_files(CUBFilepath + "parts\\part_locs.txt", "image_part_location", image_id_summary)
-load_files(CUBFilepath + "parts\\parts.txt", "part_string", parts_definitions)
-load_files(CUBFilepath + "attributes\\image_attribute_labels.txt", "image_attribute_labels", image_id_summary)
-load_files(CUBFilepath + "attributes\\class_attribute_labels_continuous.txt", "class_attribute_certainty", attributedict)
-load_files(CUBFilepath + "attributes\\certainties.txt", "certainty_string", certainty_definitions)
-load_files(attributesFilepath + "attributes.txt", "attribute_string", attribute_definitions)
+    ## access directory for the bird image
+    c = os.path.join(a, 'CUB_200_2011', 'CUB_200_2011', 'images', class_name)
+    os.chdir(c)
 
-maxwidth = 500
-maxheight = 500
+    image = Image.open(image_name)
 
-# iterate through dict of image_ids
-# for x in range(1, 10):
-for x in range(1, len(image_id_summary)+1):
-	# add class definition to be used as directory to locate individual image files
-	for key, value in class_definitions.items():
-		if key == image_id_summary[str(x)]['image_class_label']:
-			image_id_summary[str(x)]['image_class_string'] = value
-	# read in image files
-	image_filepath = current_directory + CUBFilepath + "images\\"+ image_id_summary[str(x)]['image_class_string'] + '\\' +image_id_summary[str(x)]['image_filename']
-	# image abnd image segment variables commented out as Memory Errors experienced generating original and padded versions of each image
-	# image_id_summary[str(x)]['image'] = plt.imread(image_filepath)
-	# pad image to standard 500 x 500 pixels size
-	with Image.open(image_filepath) as image_jpg:
-		image_height = image_jpg.size[0]
-		image_width = image_jpg.size[1]
-		height_diff = maxheight - image_height
-		width_diff = maxwidth - image_width
-		pad = (height_diff//2, width_diff//2, math.ceil(height_diff/2), math.ceil(width_diff/2))
-		image_id_summary[str(x)]['image_padded'] = np.array(ImageOps.expand(image_jpg, pad))
-	# read in segmented image files
-	segmentation_filepath = current_directory + segmentationsFilepath + image_id_summary[str(x)]['image_class_string'] + '\\' +image_id_summary[str(x)]['image_filename'][:-4] + ".png"
-	# image_id_summary[str(x)]['image_segmentation'] = plt.imread(segmentation_filepath)
-	# pad image segemnts to standard 500 x 500 pixels size
-	with Image.open(segmentation_filepath) as segment:
-		segment_height = segment.size[0]
-		segment_width = segment.size[1]
-		height_diff = maxheight - segment_height
-		width_diff = maxwidth - segment_width
-		pad = (height_diff//2, width_diff//2, math.ceil(height_diff/2), math.ceil(width_diff/2))
-		image_id_summary[str(x)]['image_segmentation_padded'] = np.array(ImageOps.expand(ImageOps.expand(segment, pad)))
+    ## cropping parameters
+    left = x
+    top = y
+    right = (x + width)
+    bottom = (y + height)
 
-	# append the class level attribute presence value to each attribute
-	for key, value in attributedict.items():
-		if key == image_id_summary[str(x)]['image_class_label']:
-			for y in range(1,len(image_id_summary[str(x)]['image_attribute_labels'])+1):
-				image_id_summary[str(x)]['image_attribute_labels'][str(y)].append(value[str(y)])
+    ## final size of cropped images
+    
+    ### change crop size from 40x40 - 90x90 by increments of 10
+    x_crop = 70
+    y_crop = 70
+    newsize = (x_crop, y_crop)
 
-# print dict for first image_id as an example
-print(image_id_summary['1'])
+    ## crop and resize
+    crop_image = image.crop((left, top, right, bottom))
+    new_image = crop_image.resize(newsize)
+    #     new_image = image.resize(newsize)
 
-# check length of dict matches number of imageids
-print(len(image_id_summary))
+    ### dont change this ###
+    i1 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
+    i2 = crop_image.rotate(10, expand=True).resize(newsize)
+    i3 = crop_image.rotate(-10, expand=True).resize(newsize)
+    horizontal = crop_image.transpose(Image.FLIP_LEFT_RIGHT)
+    i4 = horizontal.resize(newsize)
+    i5 = horizontal.rotate(10, expand=True).resize(newsize)
+    i6 = horizontal.rotate(-10, expand=True).resize(newsize)
+    i7 = horizontal.rotate(np.random.randint(0, 45),expand = True).resize(newsize)
+    i8 = horizontal.rotate(np.random.randint(0, 45),expand = True).resize(newsize)
+    i9 = horizontal.rotate(np.random.randint(0, 45),expand = True).resize(newsize)
+    i10 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
+    i11 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
+    
+    ### or this ###
+    b = {'class_id': np.array(class_id -1), 'image': np.array(new_image), 'i1': np.array(i1),
+         'i2': np.array(i2), 'i3': np.array(i3),'i4': np.array(i4),
+         'i5': np.array(i5), 'i6': np.array(i6), 'i7': np.array(i7), 'i8':np.array(i8),
+         'i9': np.array(i9), 'i10':np.array(i10), 'i11': np.array(i11)}
+    
 
-# to display image data from arrays
-plt.imshow(image_id_summary['1']['image_padded'])
+
+    df = df.append(b, ignore_index=True)
+
+### these are to make data frames with smaller no. of classes ###
+df10 = df.head(542)
+# df20 = df.head(1114)
+# df30 = df.head(1700)
+# df40 = df.head(2289)   
+# df50 = df.head(2889)
+
+### change data frame input to according to the data frame above ###
+## train test split (20% test)
+train, test = train_test_split(df10, test_size=0.2)
+
+train_IDs = []
+test_IDs = []
+train_list = []
+test_list = []
+train_numpy_label_data = []
+test_numpy_label_data = []
+
+
+### change the amount of images and IDs appended, to the amount of images you want ###
+for row in train.itertuples():
+    ID = row.class_id
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+    train_IDs.append(ID)
+
+    image = row.image
+    a1 = row.i1
+    a2= row.i2
+    a3 = row.i3
+    a4 = row.i4
+    a5 = row.i5
+    a6 = row.i6
+    a7 = row.i7
+    a8 = row.i8
+    a9 = row.i9
+    a10 = row.i10
+    a11 = row.i11
+    
+    train_list.append(image)
+    train_list.append(a1)
+    train_list.append(a2)
+    train_list.append(a3)
+    train_list.append(a4)
+    train_list.append(a5)
+    train_list.append(a6)
+    train_list.append(a7)
+    train_list.append(a8)
+    train_list.append(a9)
+    train_list.append(a10)
+    train_list.append(a11)
+    
+
+for row in test.itertuples():
+    ID = row.class_id
+    test_IDs.append(ID)
+    image = row.image
+    test_list.append(image)
+
+train_IDs = np.array(train_IDs)
+train_label_one_hot = to_categorical(train_IDs)
+test_IDs = np.array(test_IDs)
+test_label_one_hot = to_categorical(test_IDs)
+
+for i in range(len(train_label_one_hot)):
+    train_numpy_label_data.append((train_list[i], train_label_one_hot[i]))
+for i in range(len(test_label_one_hot)):
+    test_numpy_label_data.append((test_list[i], test_label_one_hot[i]))
+
+## shuffle data
+shuffle(train_numpy_label_data)
+shuffle(test_numpy_label_data)
+
+## removes the grey scale images *as shape is (50,50) not (50,50,3)*
+for i in train_numpy_label_data:
+    if i[0].shape == (x_crop, y_crop):
+        train_numpy_label_data = [i for i in train_numpy_label_data if i[0].shape != (x_crop, y_crop)]
+
+for i in test_numpy_label_data:
+    if i[0].shape == (x_crop, y_crop):
+        test_numpy_label_data = [i for i in test_numpy_label_data if i[0].shape != (x_crop, y_crop)]
+
+pre_X_train = []
+pre_y_train = []
+pre_X_test = []
+pre_y_test = []
+
+## create X and y sets
+for i in train_numpy_label_data:
+    pre_X_train.append(i[0])
+    pre_y_train.append(i[1])
+for i in test_numpy_label_data:
+    pre_X_test.append(i[0])
+    pre_y_test.append(i[1])
+    
+
+X_train = np.asarray(pre_X_train)/255
+X_test = np.asarray(pre_X_test)/255
+y_train = np.asarray(pre_y_train)
+y_test= np.asarray(pre_y_test)
+## X_train sizes
+X_train.shape
+
+
+
+#### Convolutional Neural Network ####
+
+
+import keras
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Conv2D, MaxPooling2D
+from keras.layers.normalisation import BatchNormalisation
+from keras.metrics import categorical_accuracy
+import matplotlib.pyplot as plt
+
+
+cnn = Sequential()
+cnn.add(Conv2D(64, kernel_size=(3, 3), activation='relu', input_shape=(x_crop, y_crop, 3)))
+cnn.add(BatchNormalisation())
+cnn.add(MaxPooling2D(pool_size=(2, 2)))
+cnn.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
+cnn.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
+cnn.add(BatchNormalisation())
+cnn.add(MaxPooling2D(pool_size=(2, 2)))
+cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
+cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
+cnn.add(BatchNormalisation())
+cnn.add(MaxPooling2D(pool_size=(2, 2)))
+cnn.add(Dropout(0.2))
+
+cnn.add(Flatten())
+cnn.add(Dense(512, activation='relu'))
+cnn.add(Dropout(0.5))
+cnn.add(Dense(256, activation='relu'))
+cnn.add(Dropout(0.5))
+cnn.add(Dense(10, activation='softmax'))
+
+cnn.compile(loss=keras.losses.categorical_crossentropy,
+              optimizer=keras.optimizers.Adam(),
+              metrics=['accuracy'])
+
+history = cnn.fit(X_train, y_train, epochs=12, batch_size=32, validation_split=0.2)
+
+#cnn.save(r'/home/c1422205/Documents/Modules/ml/model.h5')
+
+
+#cnn = tf.keras.models.load_model(r'/home/c1422205/Documents/Modules/ml/model.h5')
+cnn.summary()
+
+# make predictions
+accuracy = cnn.evaluate(x=X_test,y=y_test, batch_size=32)
+print("Accuracy: ",accuracy[1])
+
+predictions = cnn.predict_classes(X_test)
+np.unique(predictions)
+
+print(history.history.keys())
+# summarize history for accuracy
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
 plt.show()
-plt.imshow(image_id_summary['1']['image_segmentation_padded'])
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'test'], loc='upper left')
 plt.show()
-
-train = []
-test = []
-train_class = {}
-test_class = {}
-image_sizes_h = []
-image_sizes_w = []
-box_sizes_h = []
-box_sizes_w = []
-
-# split data based on train/test labels
-# for x in range(1, 10):
-for x in range(1, len(image_id_summary)+1):
-	# image_sizes_h.append(image_id_summary[str(x)]['image'].shape[0])
-	# image_sizes_w.append(image_id_summary[str(x)]['image'].shape[1])
-	box_sizes_h.append(float(image_id_summary[str(x)]['image_bounding_box'][3]))
-	box_sizes_w.append(float(image_id_summary[str(x)]['image_bounding_box'][2]))
-	if image_id_summary[str(x)]['train_test_split'] == '0':
-		train.append(image_id_summary[str(x)])
-		if image_id_summary[str(x)]['image_class_label'] in train_class:
-			train_class[image_id_summary[str(x)]['image_class_label']] +=1
-		else:
-			train_class[image_id_summary[str(x)]['image_class_label']] = 1
-
-	else:
-		test.append(image_id_summary[str(x)])
-		if image_id_summary[str(x)]['image_class_label'] in test_class:
-			test_class[image_id_summary[str(x)]['image_class_label']] +=1
-		else:
-			test_class[image_id_summary[str(x)]['image_class_label']] = 1
-
-# Training Records: 5794
-# Test Records: 5994
-print("Training Records", len(train))
-print("Test Records", len(test))
-
-# check split between test and train by class
-for x in range(1,201) :
-	print(x, "Train Records: ", train_class[str(x)], "Test Records: ", test_class[str(x)], "Test Proportion: ", test_class[str(x)]/(test_class[str(x)]+train_class[str(x)]), "Train Proportion: ", train_class[str(x)]/(train_class[str(x)]+test_class[str(x)]))
-
-# maximum image height: 497, minimum image width: 500
-# print(max(box_sizes_h))
-# print(max(box_sizes_w))
-# minimum image height: 120, minimum image width: 121
-# print(min(image_sizes_h))
-# print(min(image_sizes_w))
-
-
-
-# TO DO: image_bounding_box and image_part_coordinates, need to be shifted to account for padding
-
-
-# print(class_definitions)
-# print(parts_definitions)
-# print(attribute_definitions)
-# print(certainty_definitions)
-
-
-# file not read in:
-# CUB_200_2011\\parts\\part_click_locs - summarised in the part_locs data - probably not useful for model training
