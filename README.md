@@ -4,6 +4,9 @@ Only the main script needs to be run which contains all preprocessing and convol
 
 8 of the 11788 images are greyscale, so have been removed as they cause problems in code and are insignificant
 
+Group Members:
+C1422205 - Gerard Church
+?
 
 Files:
 
@@ -14,3 +17,7 @@ Python script to load, manipulate/ augment images and train/ test convolution ne
 create_csv.py
 ---------------
 Contains code used to concatenate information in DataFrames using pandas.
+
+descriptive_stats.ipynb
+--------------------------
+Explorotory data analysis and descriptive statistics
