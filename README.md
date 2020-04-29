@@ -5,8 +5,12 @@ Only the main script needs to be run which contains all preprocessing and convol
 8 of the 11788 images are greyscale, so have been removed as they cause problems in code and are insignificant
 
 Group Members:
-C1422205 - Gerard Church
-?
+Gerard Church – C1422205
+Alfarzdag Mohamed – C1985309
+Samuel Bird – C1992220
+Yingying Wu – C1897810
+Clare Truelove – C1881262
+
 
 Files:
 
