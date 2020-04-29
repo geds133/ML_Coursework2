@@ -204,21 +204,21 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
 from keras.layers import Conv2D, MaxPooling2D
-from keras.layers.normalisation import BatchNormalisation
+from keras.layers import BatchNormalization
 import matplotlib.pyplot as plt
 
 
 cnn = Sequential()
 cnn.add(Conv2D(64, kernel_size=(3, 3), activation='relu', input_shape=(x_crop, y_crop, 3)))
-cnn.add(BatchNormalisation())
+cnn.add(BatchNormalization())
 cnn.add(MaxPooling2D(pool_size=(2, 2)))
 cnn.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
 cnn.add(Conv2D(128, kernel_size=(3, 3), activation='relu' ))
-cnn.add(BatchNormalisation())
+cnn.add(BatchNormalization())
 cnn.add(MaxPooling2D(pool_size=(2, 2)))
 cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
 cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
-cnn.add(BatchNormalisation())
+cnn.add(BatchNormalization())
 cnn.add(MaxPooling2D(pool_size=(2, 2)))
 cnn.add(Dropout(0.2))
 
