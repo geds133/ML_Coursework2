@@ -10,22 +10,20 @@ import tensorflow as tf
 import keras
 from keras.utils import to_categorical
 
-## load data
-
+# load data from csv created in create_csv.py
 birds = pd.read_csv('bird_labs.csv', low_memory=False)
 
-
-## get current directory
+# get current directory
 a = os.getcwd()
 
-## create lists
 label_data = []
 IDs = []
 
-#### don't change this to change quantity of images, change at next part where said ###
+# create new dataframe structure to contain augmented images
 df = pd.DataFrame(
     {'class_id': [], 'image': [], 'i1': [], 'i2': [], 'i3': [],'i4': [], 'i5': [], 'i6': [], 'i7': [], 'i8': [], 'i9': [], 'i10': [], 'i11': []})
 
+# iterate through birds.csv data
 for row in birds.itertuples():
     class_name = row.class_name
     class_id = row.class_id
@@ -35,31 +33,28 @@ for row in birds.itertuples():
     width = row.width
     height = row.height
 
-    ## access directory for the bird image
+    # access directory for the bird image
     c = os.path.join(a, 'CUB_200_2011', 'CUB_200_2011', 'images', class_name)
     os.chdir(c)
 
     image = Image.open(image_name)
 
-    ## cropping parameters
+    # set cropping parameters
     left = x
     top = y
     right = (x + width)
     bottom = (y + height)
 
-    ## final size of cropped images
-    
-    ### change crop size from 40x40 - 90x90 by increments of 10
-    x_crop = 70
-    y_crop = 70
+    # set number of pixels for input image
+    x_crop = 50
+    y_crop = 50
     newsize = (x_crop, y_crop)
 
-    ## crop and resize
+    # crop and resize images
     crop_image = image.crop((left, top, right, bottom))
     new_image = crop_image.resize(newsize)
-    #     new_image = image.resize(newsize)
 
-    ### dont change this ###
+    # apply range of image augmentations to increase number of samples in training dataset
     i1 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
     i2 = crop_image.rotate(10, expand=True).resize(newsize)
     i3 = crop_image.rotate(-10, expand=True).resize(newsize)
@@ -72,27 +67,20 @@ for row in birds.itertuples():
     i9 = horizontal.rotate(np.random.randint(0, 45),expand = True).resize(newsize)
     i10 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
     i11 = crop_image.rotate(np.random.randint(0, 45), expand=True).resize(newsize)
-    
-    ### or this ###
+
+    # append augmented images to df
     b = {'class_id': np.array(class_id -1), 'image': np.array(new_image), 'i1': np.array(i1),
          'i2': np.array(i2), 'i3': np.array(i3),'i4': np.array(i4),
          'i5': np.array(i5), 'i6': np.array(i6), 'i7': np.array(i7), 'i8':np.array(i8),
          'i9': np.array(i9), 'i10':np.array(i10), 'i11': np.array(i11)}
-    
-
 
     df = df.append(b, ignore_index=True)
 
-### these are to make data frames with smaller no. of classes ###
-df10 = df.head(542)
-# df20 = df.head(1114)
-# df30 = df.head(1700)
-# df40 = df.head(2289)   
-# df50 = df.head(2889)
+# reduce number of classes
+df20 = df.head(1114)
 
-### change data frame input to according to the data frame above ###
-## train test split (20% test)
-train, test = train_test_split(df10, test_size=0.2)
+# train test split (20% test)
+train, test = train_test_split(df20, test_size=0.2, stratify=df20['class_id'], random_state=42)
 
 train_IDs = []
 test_IDs = []
@@ -101,8 +89,7 @@ test_list = []
 train_numpy_label_data = []
 test_numpy_label_data = []
 
-
-### change the amount of images and IDs appended, to the amount of images you want ###
+# append training data images and classes
 for row in train.itertuples():
     ID = row.class_id
     train_IDs.append(ID)
@@ -130,7 +117,7 @@ for row in train.itertuples():
     a9 = row.i9
     a10 = row.i10
     a11 = row.i11
-    
+
     train_list.append(image)
     train_list.append(a1)
     train_list.append(a2)
@@ -143,14 +130,16 @@ for row in train.itertuples():
     train_list.append(a9)
     train_list.append(a10)
     train_list.append(a11)
-    
 
+
+# append test data images and classes
 for row in test.itertuples():
     ID = row.class_id
     test_IDs.append(ID)
     image = row.image
     test_list.append(image)
 
+# one hot encode class_ids
 train_IDs = np.array(train_IDs)
 train_label_one_hot = to_categorical(train_IDs)
 test_IDs = np.array(test_IDs)
@@ -161,11 +150,11 @@ for i in range(len(train_label_one_hot)):
 for i in range(len(test_label_one_hot)):
     test_numpy_label_data.append((test_list[i], test_label_one_hot[i]))
 
-## shuffle data
+# shuffle data
 shuffle(train_numpy_label_data)
 shuffle(test_numpy_label_data)
 
-## removes the grey scale images *as shape is (50,50) not (50,50,3)*
+# removes the grey scale images with 2d shape as 3d shape required
 for i in train_numpy_label_data:
     if i[0].shape == (x_crop, y_crop):
         train_numpy_label_data = [i for i in train_numpy_label_data if i[0].shape != (x_crop, y_crop)]
@@ -186,20 +175,19 @@ for i in train_numpy_label_data:
 for i in test_numpy_label_data:
     pre_X_test.append(i[0])
     pre_y_test.append(i[1])
-    
 
+# convert to array and normalise RGB values
 X_train = np.asarray(pre_X_train)/255
 X_test = np.asarray(pre_X_test)/255
 y_train = np.asarray(pre_y_train)
 y_test= np.asarray(pre_y_test)
-## X_train sizes
+
+
+# X_train sizes
 X_train.shape
 
-
-
 #### Convolutional Neural Network ####
-
-
+# import required modules
 import keras
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten
@@ -207,7 +195,7 @@ from keras.layers import Conv2D, MaxPooling2D
 from keras.layers import BatchNormalization
 import matplotlib.pyplot as plt
 
-
+# construct network architecture
 cnn = Sequential()
 cnn.add(Conv2D(64, kernel_size=(3, 3), activation='relu', input_shape=(x_crop, y_crop, 3)))
 cnn.add(BatchNormalization())
@@ -221,7 +209,6 @@ cnn.add(Conv2D(256, kernel_size=(3, 3), activation='relu'))
 cnn.add(BatchNormalization())
 cnn.add(MaxPooling2D(pool_size=(2, 2)))
 cnn.add(Dropout(0.2))
-
 cnn.add(Flatten())
 cnn.add(Dense(512, activation='relu'))
 cnn.add(Dropout(0.5))
@@ -233,21 +220,22 @@ cnn.compile(loss=keras.losses.categorical_crossentropy,
               optimizer=keras.optimizers.Adam(),
               metrics=['accuracy'])
 
+# fit model to training data
 history = cnn.fit(X_train, y_train, epochs=12, batch_size=32, validation_split=0.2)
 
 #cnn.save(r'/home/c1422205/Documents/Modules/ml/model.h5')
-
-
 #cnn = tf.keras.models.load_model(r'/home/c1422205/Documents/Modules/ml/model.h5')
+
 cnn.summary()
 
-# make predictions
+# predict test set
 accuracy = cnn.evaluate(x=X_test,y=y_test, batch_size=32)
 print("Accuracy: ",accuracy[1])
 
 predictions = cnn.predict_classes(X_test)
 np.unique(predictions)
 
+# plot accuracy acroess epochs
 print(history.history.keys())
 # summarize history for accuracy
 plt.plot(history.history['accuracy'])
@@ -258,6 +246,7 @@ plt.xlabel('epoch')
 plt.legend(['train', 'test'], loc='upper left')
 plt.show()
 
+# plot loss acroess epochs
 plt.plot(history.history['loss'])
 plt.plot(history.history['val_loss'])
 plt.title('model loss')
